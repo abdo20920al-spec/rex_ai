@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // كل مستخدم يقدر يقرأ ويعدّل بياناته الخاصة فقط
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId
+                    // منع المستخدم من تعديل خطة اشتراكه بنفسه (يتم فقط عبر Cloud Functions/الأدمن)
+                    && !('plan' in request.resource.data.diff(resource.data).affectedKeys());
+      allow delete: if request.auth != null && request.auth.uid == userId;
+
+      // محادثات المستخدم
+      match /conversations/{conversationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+
+        // رسائل كل محادثة - نفس صاحب الحساب فقط
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+
+      // الصور المولّدة بالذكاء الاصطناعي والمحفوظة في معرض المستخدم
+      match /generatedImages/{imageId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل نتائج إزالة الخلفية
+      match /backgroundRemovals/{resultId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل نتائج تحسين جودة الصور
+      match /imageEnhancements/{resultId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // الشعارات المولّدة بالذكاء الاصطناعي
+      match /generatedLogos/{logoId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل الملخصات النصية
+      match /summaries/{resultId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل الترجمات
+      match /translations/{resultId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل رموز QR المولّدة
+      match /qrCodes/{codeId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل نتائج المسح الضوئي (OCR)
+      match /ocrResults/{resultId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل عمليات PDF
+      match /pdfResults/{resultId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل السير الذاتية
+      match /resumes/{resumeId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل المحتوى المكتوب بالذكاء الاصطناعي
+      match /writings/{contentId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // الأفاتارات المولّدة بالذكاء الاصطناعي
+      match /generatedAvatars/{avatarId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // الخلفيات المولّدة بالذكاء الاصطناعي
+      match /generatedWallpapers/{wallpaperId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // سجل مساعد الكود
+      match /codeAssistResults/{resultId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // لوحة الإدارة - تتطلب custom claim: admin == true (يُضبط عبر Cloud Functions)
+    // ملاحظة: كل عمليات لوحة الإدارة (قراءة/تعديل بيانات أي مستخدم، حذف محتوى) تمر
+    // حصريًا عبر Cloud Functions تستخدم Admin SDK (تتجاوز هذه القواعد بالكامل من الأساس).
+    // العميل (تطبيق Flutter) لا يقرأ بيانات مستخدمين آخرين مباشرة من Firestore أبدًا،
+    // حتى لو كان المستخدم الحالي إداريًا - وهذا يبسّط النموذج الأمني: نقطة تحقق واحدة
+    // فقط (requireAdmin() في كل Cloud Function) بدل تكرار نفس المنطق في القواعد وفي الكود.
+    match /admin/{document=**} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // أي شيء غير محدد أعلاه: ممنوع افتراضيًا
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

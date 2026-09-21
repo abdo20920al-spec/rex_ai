@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // الصور المولّدة تُرفع فقط من جهة السيرفر (Cloud Functions بصلاحيات Admin)
+    // العميل ممنوع من الكتابة المباشرة هنا لمنع رفع محتوى غير مُتحقق منه أو تجاوز حدود الاستخدام
+    match /users/{userId}/generated/{fileName} {
+      allow read: if true; // الصور تُنشر كملفات عامة (public) عبر makePublic() من الـ Function
+      allow write: if false;
+    }
+
+    // أي مسار آخر مرفوع مباشرة من المستخدم (صور، ملفات PDF قبل معالجتها...)
+    match /users/{userId}/uploads/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId
+                          && request.resource.size < 25 * 1024 * 1024; // حد 25MB
+    }
+
+    // مخرجات الأدوات التي تعمل بالكامل على الجهاز (مثل تحويل صور إلى PDF)
+    // يرفعها العميل نفسه لأنه لا يوجد Cloud Function ينتج الملف بدلاً منه
+    match /users/{userId}/client-generated/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId
+                          && request.resource.size < 25 * 1024 * 1024;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
